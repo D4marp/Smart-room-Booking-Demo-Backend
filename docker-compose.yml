@@ -1,0 +1,67 @@
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: pln_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-bookify}
+      MYSQL_USER: ${DB_USER:-bookify_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-bookify_secure_password}
+      MYSQL_ALLOW_EMPTY_PASSWORD: "false"
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - backend_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Go Backend API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pln_backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-bookify_user}
+      DB_PASSWORD: ${DB_PASSWORD:-bookify_secure_password}
+      DB_NAME: ${DB_NAME:-bookify}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-change-in-production}
+      JWT_EXPIRY: ${JWT_EXPIRY:-168h}
+      PORT: 8080
+      UPLOADS_DIR: ./uploads
+      BASE_URL: ${BASE_URL:-http://localhost:8080}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-superadmin@bookify.local}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-superadmin123}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - backend_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  backend_network:
+    driver: bridge

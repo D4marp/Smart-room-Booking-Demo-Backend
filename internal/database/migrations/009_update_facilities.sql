@@ -1,0 +1,15 @@
+-- Clean up old facilities and update with PLN-standard facilities
+DELETE FROM facilities WHERE name IN ('Projector', 'Whiteboard', 'Speakerphone', 'WiFi', 'Pantry', 'TV', 'Video Conference');
+
+-- Insert new PLN-standard facilities (IGNORE duplicates like AC, HDMI)
+INSERT IGNORE INTO facilities (id, name, created_at)
+VALUES
+    (UUID(), 'LAYAR TV', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+    (UUID(), 'LAYAR VIDETRON', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+    (UUID(), 'LAYAR PROYEKTOR', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+    (UUID(), 'SPLITER', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+    (UUID(), 'PERANGKAT VIDEO CONFERENCE', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+    (UUID(), 'MIC', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+    (UUID(), 'SPEAKER', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+    (UUID(), 'POINTER', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+    (UUID(), 'FLIPCHART', UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000);

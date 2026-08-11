@@ -1,0 +1,1 @@
+ALTER TABLE bookings ADD COLUMN pic_input VARCHAR(255);
