@@ -83,7 +83,7 @@ func (h *BookingHandler) ListBookings(c *gin.Context) {
 	query := "SELECT " + bookingCols + " FROM bookings WHERE 1=1"
 	args := []interface{}{}
 
-	if role != "admin" && role != "superadmin" {
+	if role != "admin" && role != "superadmin" && role != "dosen" {
 		query += " AND user_id = ?"
 		args = append(args, currentUserID)
 	} else if filter.UserID != "" {

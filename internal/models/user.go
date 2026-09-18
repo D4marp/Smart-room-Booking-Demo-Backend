@@ -6,13 +6,14 @@ type UserRole string
 const (
 	RoleUser       UserRole = "user"
 	RoleBooking    UserRole = "booking"    // petugas booking desk / kiosk
+	RoleDosen      UserRole = "dosen"      // dosen: lihat jadwal ruangan (read-only) di mobile app
 	RoleAdmin      UserRole = "admin"      // approve/reject bookings, kelola rooms
 	RoleSuperAdmin UserRole = "superadmin" // kelola semua user + semua fitur admin
 )
 
 // ValidRoles daftar role yang valid untuk validasi input
 var ValidRoles = map[UserRole]bool{
-	RoleUser: true, RoleBooking: true,
+	RoleUser: true, RoleBooking: true, RoleDosen: true,
 	RoleAdmin: true, RoleSuperAdmin: true,
 }
 
