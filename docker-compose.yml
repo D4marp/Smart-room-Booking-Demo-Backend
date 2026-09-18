@@ -2,7 +2,7 @@ services:
   # MySQL Database
   db:
     image: mysql:8.0
-    container_name: pln_mysql
+    container_name: smartroom_mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${DB_NAME:-bookify}
@@ -10,11 +10,11 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-bookify_secure_password}
       MYSQL_ALLOW_EMPTY_PASSWORD: "false"
     ports:
-      - "${DB_PORT:-3306}:3306"
+      - "${DB_PORT:-3316}:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - smartroom_mysql_data:/var/lib/mysql
     networks:
-      - backend_network
+      - smartroom_backend_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pln_backend
+    container_name: smartroom_backend
     depends_on:
       db:
         condition: service_healthy
@@ -46,11 +46,11 @@ services:
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-superadmin@bookify.local}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-superadmin123}
     ports:
-      - "${API_PORT:-8080}:8080"
+      - "${API_PORT:-8180}:8080"
     volumes:
       - ./uploads:/app/uploads
     networks:
-      - backend_network
+      - smartroom_backend_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:8080/health"]
@@ -59,9 +59,9 @@ services:
       retries: 3
 
 volumes:
-  mysql_data:
+  smartroom_mysql_data:
     driver: local
 
 networks:
-  backend_network:
+  smartroom_backend_network:
     driver: bridge
