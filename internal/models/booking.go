@@ -70,6 +70,18 @@ type ApproveBookingRequest struct {
 	Note *string `json:"note"`
 }
 
+// UpdateBookingRequest edits the descriptive/schedule fields of an existing
+// booking (e.g. correcting the lecturer name or class time). Every field is
+// optional — only non-nil fields are applied.
+type UpdateBookingRequest struct {
+	Pihak1        *string `json:"pihak1"`
+	Pihak2        *string `json:"pihak2"`
+	Purpose       *string `json:"purpose"`
+	CheckInTime   *string `json:"checkInTime"`
+	CheckOutTime  *string `json:"checkOutTime"`
+	BookedForName *string `json:"bookedForName"`
+}
+
 type CheckInCheckOutRequest struct {
 	ActualCheckInTime  *string `json:"actualCheckInTime"`
 	ActualCheckOutTime *string `json:"actualCheckOutTime"`

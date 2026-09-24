@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -175,6 +176,82 @@ func (h *BookingHandler) GetBooking(c *gin.Context) {
 	}
 
 	utils.Success(c, http.StatusOK, b)
+}
+
+// UpdateBooking edits descriptive/schedule fields on an existing booking
+// (lecturer name, course, or times) without changing its status. Restricted
+// to admin/superadmin via the route's middleware.
+func (h *BookingHandler) UpdateBooking(c *gin.Context) {
+	id := c.Param("id")
+
+	var req models.UpdateBookingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var exists bool
+	h.db.QueryRowContext(context.Background(),
+		"SELECT EXISTS(SELECT 1 FROM bookings WHERE id = ?)", id).Scan(&exists)
+	if !exists {
+		utils.Error(c, http.StatusNotFound, "booking not found")
+		return
+	}
+
+	setClauses := []string{}
+	args := []interface{}{}
+
+	if req.Pihak1 != nil {
+		setClauses = append(setClauses, "pihak_1 = ?")
+		args = append(args, *req.Pihak1)
+	}
+	if req.Pihak2 != nil {
+		setClauses = append(setClauses, "pihak_2 = ?")
+		args = append(args, *req.Pihak2)
+	}
+	if req.Purpose != nil {
+		setClauses = append(setClauses, "purpose = ?")
+		args = append(args, *req.Purpose)
+	}
+	if req.CheckInTime != nil {
+		setClauses = append(setClauses, "check_in_time = ?")
+		args = append(args, *req.CheckInTime)
+	}
+	if req.CheckOutTime != nil {
+		setClauses = append(setClauses, "check_out_time = ?")
+		args = append(args, *req.CheckOutTime)
+	}
+	if req.BookedForName != nil {
+		setClauses = append(setClauses, "booked_for_name = ?")
+		args = append(args, *req.BookedForName)
+	}
+
+	if len(setClauses) == 0 {
+		utils.Error(c, http.StatusBadRequest, "no fields to update")
+		return
+	}
+
+	setClauses = append(setClauses, "updated_at = ?")
+	args = append(args, time.Now().UnixMilli())
+	args = append(args, id)
+
+	query := "UPDATE bookings SET " + strings.Join(setClauses, ", ") + " WHERE id = ?"
+	if _, err := h.db.ExecContext(context.Background(), query, args...); err != nil {
+		utils.Error(c, http.StatusInternalServerError, "failed to update booking")
+		return
+	}
+
+	var updated models.Booking
+	if err := scanBooking(
+		h.db.QueryRowContext(context.Background(),
+			"SELECT "+bookingCols+" FROM bookings WHERE id = ?", id),
+		&updated,
+	); err == nil {
+		go h.broadcastBookings()
+		utils.SuccessMessage(c, http.StatusOK, "booking updated", updated)
+		return
+	}
+	utils.SuccessMessage(c, http.StatusOK, "booking updated", nil)
 }
 
 func (h *BookingHandler) CreateBooking(c *gin.Context) {

@@ -89,6 +89,7 @@ func (s *Server) registerRoutes(r *gin.Engine) {
 		bookings.PATCH("/:id/cancel", bookingH.CancelBooking)              // → cancelled
 		bookings.PATCH("/:id/complete", adminMw, bookingH.CompleteBooking) // → completed
 		bookings.PATCH("/:id/checkin-checkout", bookingH.UpdateCheckInCheckOut)
+		bookings.PATCH("/:id", adminMw, bookingH.UpdateBooking) // edit lecturer/course/time
 
 		// Feedback
 		feedbackH := handlers.NewFeedbackHandler(s.db, rtManager)
