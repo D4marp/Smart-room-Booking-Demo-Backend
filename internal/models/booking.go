@@ -81,9 +81,11 @@ type RejectBookingRequest struct {
 }
 
 type BookingFilter struct {
-	UserID string        `form:"userId"`
-	RoomID string        `form:"roomId"`
-	Status BookingStatus `form:"status"`
+	UserID   string        `form:"userId"`
+	RoomID   string        `form:"roomId"`
+	Status   BookingStatus `form:"status"`
+	FromDate string        `form:"fromDate"`
+	ToDate   string        `form:"toDate"`
 }
 
 type BookingStatusHistory struct {

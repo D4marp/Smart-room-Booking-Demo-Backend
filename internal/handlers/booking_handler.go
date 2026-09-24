@@ -99,6 +99,14 @@ func (h *BookingHandler) ListBookings(c *gin.Context) {
 		query += " AND status = ?"
 		args = append(args, string(filter.Status))
 	}
+	if filter.FromDate != "" {
+		query += " AND booking_date >= ?"
+		args = append(args, filter.FromDate)
+	}
+	if filter.ToDate != "" {
+		query += " AND booking_date <= ?"
+		args = append(args, filter.ToDate)
+	}
 
 	query += " ORDER BY created_at DESC"
 

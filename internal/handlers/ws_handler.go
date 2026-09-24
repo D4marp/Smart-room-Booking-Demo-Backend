@@ -178,7 +178,7 @@ func (h *WSHandler) fetchBookings(userID, role string) []models.Booking {
 	          FROM bookings`
 	args := []interface{}{}
 
-	if role != "admin" && role != "superadmin" {
+	if role != "admin" && role != "superadmin" && role != "dosen" {
 		query += " WHERE user_id = ?"
 		args = append(args, userID)
 	}
