@@ -75,6 +75,20 @@ func (s *Server) registerRoutes(r *gin.Engine) {
 	}
 
 	// -------------------------------------------------------------------------
+	// Flyers (public active list for kiosk carousel, admin upload/manage)
+	// -------------------------------------------------------------------------
+	flyerH := handlers.NewFlyerHandler(s.db, s.cfg.UploadsDir, s.cfg.BaseURL)
+	flyers := r.Group("/api/flyers")
+	{
+		flyers.GET("", flyerH.ListActiveFlyers)
+
+		flyers.GET("/manage", authMw, adminMw, flyerH.ListAllFlyers)
+		flyers.POST("", authMw, adminMw, flyerH.CreateFlyer)
+		flyers.PATCH("/:id", authMw, adminMw, flyerH.UpdateFlyer)
+		flyers.DELETE("/:id", authMw, adminMw, flyerH.DeleteFlyer)
+	}
+
+	// -------------------------------------------------------------------------
 	// Bookings
 	// -------------------------------------------------------------------------
 	bookings := r.Group("/api/bookings")
