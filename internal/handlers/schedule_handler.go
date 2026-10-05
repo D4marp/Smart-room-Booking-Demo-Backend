@@ -292,7 +292,7 @@ func (h *BookingHandler) ImportSchedule(c *gin.Context) {
 			return
 		}
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO booking_history (id, booking_id, from_status, to_status, changed_by, note, created_at)
+			`INSERT INTO booking_status_history (id, booking_id, from_status, to_status, changed_by, note, created_at)
 			 VALUES (?,?,?,?,?,?,?)`,
 			uuid.New().String(), bookingID, "", "confirmed", userID, "imported from class schedule", now,
 		); err != nil {
