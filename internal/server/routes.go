@@ -132,6 +132,10 @@ func (s *Server) registerRoutes(r *gin.Engine) {
 		admin.GET("/stats", adminMw, adminH.GetStats)
 		admin.GET("/bookings", adminMw, adminH.GetAdminBookings)
 
+		// Class timetable: classes (angkatan) + weekly schedule import
+		admin.GET("/classes", adminMw, bookingH.ListClasses)
+		admin.POST("/schedules/import", adminMw, bookingH.ImportSchedule)
+
 		// Superadmin: user management
 		admin.GET("/users", superMw, adminH.ListUsers)
 		admin.POST("/users", superMw, adminH.CreateUser)

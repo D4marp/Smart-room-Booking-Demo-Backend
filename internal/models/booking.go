@@ -31,14 +31,17 @@ type Booking struct {
 	ApprovedBy      *string       `json:"approvedBy" db:"approved_by"`
 	ApprovedAt      *int64        `json:"approvedAt" db:"approved_at"`
 	// Denormalized fields (same as Firestore behavior)
-	RoomName              *string `json:"roomName" db:"room_name"`
-	RoomLocation          *string `json:"roomLocation" db:"room_location"`
-	RoomImageURL          *string `json:"roomImageUrl" db:"room_image_url"`
-	BookedForName         *string `json:"bookedForName" db:"booked_for_name"`
-	BookedForCompany      *string `json:"bookedForCompany" db:"booked_for_company"`
-	Pihak1                *string `json:"pihak1" db:"pihak_1"`
-	Pihak2                *string `json:"pihak2" db:"pihak_2"`
-	PicInput              *string `json:"picInput" db:"pic_input"`
+	RoomName         *string `json:"roomName" db:"room_name"`
+	RoomLocation     *string `json:"roomLocation" db:"room_location"`
+	RoomImageURL     *string `json:"roomImageUrl" db:"room_image_url"`
+	BookedForName    *string `json:"bookedForName" db:"booked_for_name"`
+	BookedForCompany *string `json:"bookedForCompany" db:"booked_for_company"`
+	Pihak1           *string `json:"pihak1" db:"pihak_1"`
+	Pihak2           *string `json:"pihak2" db:"pihak_2"`
+	PicInput         *string `json:"picInput" db:"pic_input"`
+	// Class (angkatan/kelas, e.g. "2025L") the booking is scheduled for.
+	ClassID               *string `json:"classId" db:"class_id"`
+	ClassCode             *string `json:"classCode" db:"class_code"`
 	ActualCheckInTime     *string `json:"actualCheckInTime" db:"actual_check_in_time"`
 	ActualCheckOutTime    *string `json:"actualCheckOutTime" db:"actual_check_out_time"`
 	ActualDurationMinutes *int    `json:"actualDurationMinutes" db:"actual_duration_minutes"`
@@ -108,4 +111,16 @@ type BookingStatusHistory struct {
 	ChangedBy  string `json:"changedBy" db:"changed_by"`
 	Note       string `json:"note" db:"note"`
 	CreatedAt  int64  `json:"createdAt" db:"created_at"`
+}
+
+// Class is a student cohort/class (e.g. 2025L) — distinct from a room.
+type Class struct {
+	ID           string `json:"id" db:"id"`
+	Code         string `json:"code" db:"code"`
+	StudyProgram string `json:"studyProgram" db:"study_program"`
+	StudentCount int    `json:"studentCount" db:"student_count"`
+	CreatedAt    int64  `json:"createdAt" db:"created_at"`
+	UpdatedAt    *int64 `json:"updatedAt" db:"updated_at"`
+	// Number of bookings currently scheduled for this class (list endpoint only).
+	BookingCount int `json:"bookingCount"`
 }
