@@ -639,7 +639,16 @@ func (h *BookingHandler) GetRoomBookings(c *gin.Context) {
 			args = append(args, dateMs)
 		}
 	}
-	query += " ORDER BY check_in_time ASC"
+	// Optional inclusive range (epoch-ms of local midnight), e.g. kiosk "next 2 days".
+	if from, err := strconv.ParseInt(c.Query("fromDate"), 10, 64); err == nil {
+		query += " AND booking_date >= ?"
+		args = append(args, from)
+	}
+	if to, err := strconv.ParseInt(c.Query("toDate"), 10, 64); err == nil {
+		query += " AND booking_date <= ?"
+		args = append(args, to)
+	}
+	query += " ORDER BY booking_date ASC, check_in_time ASC"
 
 	rows, err := h.db.QueryContext(context.Background(), query, args...)
 	if err != nil {
