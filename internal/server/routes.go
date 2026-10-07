@@ -145,6 +145,20 @@ func (s *Server) registerRoutes(r *gin.Engine) {
 	}
 
 	// -------------------------------------------------------------------------
+	// Integration API (machine-to-machine, X-API-Key). Read-only: schedule,
+	// change feed, check-out events. Device control is NOT exposed here.
+	// -------------------------------------------------------------------------
+	integrationH := handlers.NewIntegrationHandler(s.db)
+	integration := r.Group("/api/integration/v1")
+	integration.Use(middleware.IntegrationAuth(s.cfg.IntegrationAPIKeys))
+	{
+		integration.GET("/rooms", integrationH.ListRooms)
+		integration.GET("/schedules", integrationH.ListSchedules)
+		integration.GET("/schedules/:bookingId", integrationH.GetSchedule)
+		integration.GET("/events", integrationH.ListEvents)
+	}
+
+	// -------------------------------------------------------------------------
 	// WebSocket
 	// -------------------------------------------------------------------------
 	wsH := handlers.NewWSHandler(s.db, rtManager, s.cfg.JWTSecret)

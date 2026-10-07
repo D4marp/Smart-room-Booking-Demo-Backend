@@ -198,6 +198,10 @@ func (h *BookingHandler) UpdateBooking(c *gin.Context) {
 		return
 	}
 
+	var prevIn, prevOut string
+	h.db.QueryRowContext(context.Background(),
+		"SELECT check_in_time, check_out_time FROM bookings WHERE id = ?", id).Scan(&prevIn, &prevOut)
+
 	setClauses := []string{}
 	args := []interface{}{}
 
@@ -240,6 +244,14 @@ func (h *BookingHandler) UpdateBooking(c *gin.Context) {
 		utils.Error(c, http.StatusInternalServerError, "failed to update booking")
 		return
 	}
+
+	eventType := EventBookingUpdated
+	extra := map[string]any{}
+	if (req.CheckInTime != nil && *req.CheckInTime != prevIn) || (req.CheckOutTime != nil && *req.CheckOutTime != prevOut) {
+		eventType = EventBookingRescheduled
+		extra["previous"] = map[string]string{"startTime": prevIn, "endTime": prevOut}
+	}
+	recordIntegrationEvent(context.Background(), h.db, eventType, id, extra)
 
 	var updated models.Booking
 	if err := scanBooking(
@@ -362,6 +374,7 @@ func (h *BookingHandler) CreateBooking(c *gin.Context) {
 	}
 
 	h.recordHistory(booking.ID, "", "pending", userID, "booking created")
+	recordIntegrationEvent(context.Background(), h.db, EventBookingCreated, booking.ID, nil)
 	go h.broadcastBookings()
 	utils.SuccessMessage(c, http.StatusCreated,
 		"booking submitted, waiting for admin approval", booking)
@@ -397,6 +410,7 @@ func (h *BookingHandler) ApproveBooking(c *gin.Context) {
 		note = *req.Note
 	}
 	h.recordHistory(id, "pending", "confirmed", adminID, note)
+	recordIntegrationEvent(context.Background(), h.db, EventBookingConfirmed, id, nil)
 	go h.broadcastBookings()
 	utils.SuccessMessage(c, http.StatusOK, "booking approved",
 		gin.H{"id": id, "status": "confirmed"})
@@ -432,6 +446,7 @@ func (h *BookingHandler) RejectBooking(c *gin.Context) {
 		req.Reason, adminID, now, now, id)
 
 	h.recordHistory(id, "pending", "rejected", adminID, req.Reason)
+	recordIntegrationEvent(context.Background(), h.db, EventBookingRejected, id, map[string]any{"reason": req.Reason})
 	go h.broadcastBookings()
 	utils.SuccessMessage(c, http.StatusOK, "booking rejected",
 		gin.H{"id": id, "status": "rejected", "reason": req.Reason})
@@ -468,6 +483,7 @@ func (h *BookingHandler) CancelBooking(c *gin.Context) {
 		"UPDATE bookings SET status='cancelled', updated_at=? WHERE id=?", now, id)
 
 	h.recordHistory(id, string(status), "cancelled", userID, "cancelled by user/admin")
+	recordIntegrationEvent(context.Background(), h.db, EventBookingCancelled, id, map[string]any{"previousStatus": string(status)})
 	go h.broadcastBookings()
 	utils.SuccessMessage(c, http.StatusOK, "booking cancelled",
 		gin.H{"id": id, "status": "cancelled"})
@@ -497,6 +513,7 @@ func (h *BookingHandler) CompleteBooking(c *gin.Context) {
 	}
 
 	h.recordHistory(id, "confirmed", "completed", adminID, "marked completed by admin")
+	recordIntegrationEvent(context.Background(), h.db, EventBookingCompleted, id, map[string]any{"source": "admin"})
 	go h.broadcastBookings()
 	utils.SuccessMessage(c, http.StatusOK, "booking completed",
 		gin.H{"id": id, "status": "completed"})
@@ -595,6 +612,25 @@ func (h *BookingHandler) UpdateCheckInCheckOut(c *gin.Context) {
 		return
 	}
 
+	emitActualTimes := func() {
+		source := "user"
+		switch {
+		case req.Source != nil && (*req.Source == "kiosk_button" || *req.Source == "kiosk_auto"):
+			source = *req.Source
+		case isAdmin:
+			source = "admin"
+		case isBookingRole:
+			source = "kiosk"
+		}
+		extra := map[string]any{"source": source}
+		if req.ActualCheckInTime != nil {
+			recordIntegrationEvent(context.Background(), h.db, EventBookingCheckedIn, id, extra)
+		}
+		if req.ActualCheckOutTime != nil {
+			recordIntegrationEvent(context.Background(), h.db, EventBookingCheckedOut, id, extra)
+		}
+	}
+
 	// If client requested auto-complete (mobile checkout), and actual check-out provided,
 	// and booking is currently confirmed, mark booking as completed.
 	if req.MarkComplete && actualCheckOut != "" && status == models.StatusConfirmed {
@@ -603,6 +639,7 @@ func (h *BookingHandler) UpdateCheckInCheckOut(c *gin.Context) {
 			"UPDATE bookings SET status='completed', updated_at=? WHERE id = ?", now2, id)
 		if err2 == nil {
 			h.recordHistory(id, string(status), string(models.StatusCompleted), currentUserID, "auto-completed by user on checkout")
+			emitActualTimes()
 			go h.broadcastBookings()
 			utils.SuccessMessage(c, http.StatusOK, "check-in/check-out updated and booking completed", gin.H{
 				"id":                    id,
@@ -615,6 +652,7 @@ func (h *BookingHandler) UpdateCheckInCheckOut(c *gin.Context) {
 		}
 	}
 
+	emitActualTimes()
 	go h.broadcastBookings()
 	utils.SuccessMessage(c, http.StatusOK, "check-in/check-out updated", gin.H{
 		"id":                    id,
@@ -689,6 +727,7 @@ func (h *BookingHandler) GetRoomBookings(c *gin.Context) {
 								actualCheckInTime, time.Now().UnixMilli(), b.ID).Scan(&b.ID)
 
 							if updateErr == nil {
+								recordIntegrationEvent(context.Background(), h.db, EventBookingCheckedIn, b.ID, map[string]any{"source": "auto"})
 								// Update in-memory booking
 								b.ActualCheckInTime = &actualCheckInTime
 							}

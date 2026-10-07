@@ -306,6 +306,13 @@ func (h *BookingHandler) ImportSchedule(c *gin.Context) {
 		return
 	}
 
+	recordIntegrationEvent(ctx, h.db, EventScheduleReplaced, "", map[string]any{
+		"roomCode":        roomName,
+		"from":            req.StartDate,
+		"to":              req.EndDate,
+		"bookingsCreated": len(planned),
+		"bookingsDeleted": deleted,
+	})
 	go h.broadcastBookings()
 	utils.SuccessMessage(c, http.StatusCreated, "schedule imported", gin.H{
 		"classes":         len(classIDs),

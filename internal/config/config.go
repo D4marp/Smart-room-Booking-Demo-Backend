@@ -21,6 +21,11 @@ type Config struct {
 	AllowedOrigins     []string
 	SuperAdminEmail    string
 	SuperAdminPassword string
+
+	// Machine-to-machine integration (building automation: door/AC/lights).
+	IntegrationAPIKeys       []string
+	IntegrationWebhookURL    string
+	IntegrationWebhookSecret string
 }
 
 func Load() *Config {
@@ -45,6 +50,10 @@ func Load() *Config {
 		AllowedOrigins:     []string{getEnv("ALLOWED_ORIGINS", "*")},
 		SuperAdminEmail:    getEnv("SUPERADMIN_EMAIL", ""),
 		SuperAdminPassword: getEnv("SUPERADMIN_PASSWORD", ""),
+
+		IntegrationAPIKeys:       splitCSV(getEnv("INTEGRATION_API_KEYS", "")),
+		IntegrationWebhookURL:    strings.TrimSpace(getEnv("INTEGRATION_WEBHOOK_URL", "")),
+		IntegrationWebhookSecret: getEnv("INTEGRATION_WEBHOOK_SECRET", ""),
 	}
 }
 
@@ -281,6 +290,16 @@ func firstEnv(keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func splitCSV(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func getEnv(key, fallback string) string {

@@ -45,6 +45,10 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-superadmin@bookify.local}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-superadmin123}
+      # Integration API (building automation). Empty keys = API disabled.
+      INTEGRATION_API_KEYS: ${INTEGRATION_API_KEYS:-}
+      INTEGRATION_WEBHOOK_URL: ${INTEGRATION_WEBHOOK_URL:-}
+      INTEGRATION_WEBHOOK_SECRET: ${INTEGRATION_WEBHOOK_SECRET:-}
     ports:
       - "${API_PORT:-8180}:8080"
     volumes:

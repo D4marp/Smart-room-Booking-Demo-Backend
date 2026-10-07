@@ -89,6 +89,9 @@ type CheckInCheckOutRequest struct {
 	ActualCheckInTime  *string `json:"actualCheckInTime"`
 	ActualCheckOutTime *string `json:"actualCheckOutTime"`
 	MarkComplete       bool    `json:"markComplete"`
+	// Source tells integrators what triggered it: kiosk_button (tap/slide on the
+	// tablet), kiosk_auto (auto check-out after grace period). Optional.
+	Source *string `json:"source"`
 }
 
 type RejectBookingRequest struct {

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/bookify-rooms/backend/internal/config"
 	"github.com/bookify-rooms/backend/internal/database"
+	"github.com/bookify-rooms/backend/internal/integration"
 	"github.com/bookify-rooms/backend/internal/server"
 )
 
@@ -23,6 +25,11 @@ func main() {
 
 	if err := database.SeedSuperAdmin(db, cfg.SuperAdminEmail, cfg.SuperAdminPassword, "Super Admin"); err != nil {
 		log.Fatalf("Failed to seed superadmin: %v", err)
+	}
+
+	if cfg.IntegrationWebhookURL != "" {
+		go integration.StartWebhookDispatcher(context.Background(), db,
+			cfg.IntegrationWebhookURL, cfg.IntegrationWebhookSecret)
 	}
 
 	srv := server.New(cfg, db)
