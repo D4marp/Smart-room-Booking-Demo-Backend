@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/bookify-rooms/backend/internal/automation"
 	"github.com/bookify-rooms/backend/internal/config"
 	"github.com/bookify-rooms/backend/internal/database"
 	"github.com/bookify-rooms/backend/internal/integration"
@@ -30,6 +31,17 @@ func main() {
 	if cfg.IntegrationWebhookURL != "" {
 		go integration.StartWebhookDispatcher(context.Background(), db,
 			cfg.IntegrationWebhookURL, cfg.IntegrationWebhookSecret)
+	}
+
+	if cfg.AutomationMode == automation.ModeDryRun || cfg.AutomationMode == automation.ModeLive {
+		svc := automation.New(db, automation.Config{
+			Mode:            cfg.AutomationMode,
+			BaseURL:         cfg.AutomationBaseURL,
+			Secret:          cfg.AutomationHMACSecret,
+			RoomCodes:       cfg.AutomationRoomCodes,
+			CheckoutSources: cfg.AutomationCheckoutSources,
+		})
+		go svc.Run(context.Background())
 	}
 
 	srv := server.New(cfg, db)

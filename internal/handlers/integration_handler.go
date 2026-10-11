@@ -232,3 +232,41 @@ func (h *IntegrationHandler) ListEvents(c *gin.Context) {
 		"nextAfterId": next,
 	})
 }
+
+// ListAutomationEvents shows what the on-prem automation connector did
+// (prestart / checkout, status, partner response). Admin-only; read-only.
+func (h *IntegrationHandler) ListAutomationEvents(c *gin.Context) {
+	rows, err := h.db.QueryContext(c.Request.Context(),
+		`SELECT event_id, event_type, COALESCE(booking_id,''), COALESCE(room_code,''), status, attempts,
+		        COALESCE(http_status,0), COALESCE(error,''), created_at, updated_at
+		 FROM automation_events WHERE event_type <> 'cursor' ORDER BY id DESC LIMIT 100`)
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, "failed to list automation events")
+		return
+	}
+	defer rows.Close()
+	type item struct {
+		EventID    string `json:"eventId"`
+		Type       string `json:"type"`
+		BookingID  string `json:"bookingId"`
+		RoomCode   string `json:"roomCode"`
+		Status     string `json:"status"`
+		Attempts   int    `json:"attempts"`
+		HTTPStatus int    `json:"httpStatus"`
+		Note       string `json:"note"`
+		CreatedAt  string `json:"createdAt"`
+		UpdatedAt  string `json:"updatedAt"`
+	}
+	out := []item{}
+	for rows.Next() {
+		var it item
+		var created, updated int64
+		if err := rows.Scan(&it.EventID, &it.Type, &it.BookingID, &it.RoomCode, &it.Status, &it.Attempts,
+			&it.HTTPStatus, &it.Note, &created, &updated); err == nil {
+			it.CreatedAt = time.UnixMilli(created).In(jakarta).Format(time.RFC3339)
+			it.UpdatedAt = time.UnixMilli(updated).In(jakarta).Format(time.RFC3339)
+			out = append(out, it)
+		}
+	}
+	utils.Success(c, http.StatusOK, out)
+}

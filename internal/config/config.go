@@ -26,6 +26,13 @@ type Config struct {
 	IntegrationAPIKeys       []string
 	IntegrationWebhookURL    string
 	IntegrationWebhookSecret string
+
+	// On-prem building automation connector (AC/lamp/door). Mode: off|dry_run|live.
+	AutomationMode            string
+	AutomationBaseURL         string
+	AutomationHMACSecret      string
+	AutomationRoomCodes       []string
+	AutomationCheckoutSources []string
 }
 
 func Load() *Config {
@@ -54,6 +61,13 @@ func Load() *Config {
 		IntegrationAPIKeys:       splitCSV(getEnv("INTEGRATION_API_KEYS", "")),
 		IntegrationWebhookURL:    strings.TrimSpace(getEnv("INTEGRATION_WEBHOOK_URL", "")),
 		IntegrationWebhookSecret: getEnv("INTEGRATION_WEBHOOK_SECRET", ""),
+
+		AutomationMode:       strings.ToLower(strings.TrimSpace(getEnv("AUTOMATION_MODE", "off"))),
+		AutomationBaseURL:    strings.TrimSpace(getEnv("AUTOMATION_BASE_URL", "")),
+		AutomationHMACSecret: getEnv("AUTOMATION_HMAC_SECRET", ""),
+		AutomationRoomCodes: splitCSV(getEnv("AUTOMATION_ROOM_CODES",
+			"Q1.05.03,Q1.05.05,Q1.05.16,Q1.06.15,Q1.06.05")),
+		AutomationCheckoutSources: splitCSV(getEnv("AUTOMATION_CHECKOUT_SOURCES", "kiosk_button")),
 	}
 }
 

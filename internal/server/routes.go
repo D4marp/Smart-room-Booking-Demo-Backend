@@ -136,6 +136,9 @@ func (s *Server) registerRoutes(r *gin.Engine) {
 		admin.GET("/classes", adminMw, bookingH.ListClasses)
 		admin.POST("/schedules/import", adminMw, bookingH.ImportSchedule)
 
+		// What the on-prem automation connector sent (audit, read-only)
+		admin.GET("/automation/events", adminMw, handlers.NewIntegrationHandler(s.db).ListAutomationEvents)
+
 		// Superadmin: user management
 		admin.GET("/users", superMw, adminH.ListUsers)
 		admin.POST("/users", superMw, adminH.CreateUser)
