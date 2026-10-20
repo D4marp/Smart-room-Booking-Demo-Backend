@@ -31,11 +31,16 @@ const (
 	ModeOff    = "off"
 	ModeDryRun = "dry_run"
 	ModeLive   = "live"
+	// ModePull queues ON/OFF commands that Node-RED fetches over HTTPS
+	// (GET .../automation/commands) and confirms (POST .../ack).
+	ModePull = "pull"
 
 	prestartMin = 13 * time.Minute // partner accepts T-17..T-13; we send in T-15..T-13
 	prestartTgt = 15 * time.Minute
 	maxAge      = 15 * time.Minute // never act on a checkout older than this
 	maxAttempts = 8
+
+	nextClassGuard = 15 * time.Minute // partner rule: no OFF if next class is this close
 )
 
 type Config struct {
@@ -91,7 +96,7 @@ func Sign(secret, timestamp string, body []byte) string {
 
 // Run drives both workers until ctx is cancelled.
 func (s *Service) Run(ctx context.Context) {
-	if s.cfg.Mode != ModeDryRun && s.cfg.Mode != ModeLive {
+	if s.cfg.Mode != ModeDryRun && s.cfg.Mode != ModeLive && s.cfg.Mode != ModePull {
 		return
 	}
 	if s.cfg.Mode == ModeLive && (s.cfg.BaseURL == "" || len(s.cfg.Secret) < 32) {
@@ -214,7 +219,11 @@ func (s *Service) finish(ctx context.Context, eventID, status string, attempts i
 
 // send executes (or, in dry_run, simulates) one POST and records the outcome.
 // stillValid is re-checked before every retry.
-func (s *Service) send(ctx context.Context, eventID, path string, body []byte, prev row, stillValid func() bool) {
+func (s *Service) send(ctx context.Context, eventID, path string, body []byte, cmd Command, prev row, stillValid func() bool) {
+	if s.cfg.Mode == ModePull {
+		s.enqueue(ctx, eventID, cmd)
+		return
+	}
 	if s.cfg.Mode == ModeDryRun {
 		s.finish(ctx, eventID, "dry_run", prev.attempts, 0, result{}, "dry run: not sent")
 		log.Printf("automation[dry_run]: would POST %s %s", path, string(body))
@@ -310,7 +319,11 @@ func (s *Service) TickPrestart(ctx context.Context) {
 			StartsAt: iso(start), EventType: "booking.prestart",
 		})
 		prev, exists := s.load(ctx, eventID)
-		if delta < prestartMin { // window (T-13) already closed
+		minDelta := prestartMin
+		if s.cfg.Mode == ModePull {
+			minDelta = 0 // Node-RED may be a bit late; ON until the class starts is still useful
+		}
+		if delta < minDelta { // window (T-13) already closed
 			if !exists {
 				s.insert(ctx, eventID, "prestart", c.id, c.room, nil, "missed", payload, "T-15 window missed (service was down or booking created late)")
 				log.Printf("automation: %s MISSED T-15 window (%s before start)", eventID, delta.Round(time.Second))
@@ -325,7 +338,14 @@ func (s *Service) TickPrestart(ctx context.Context) {
 			continue
 		}
 		startAt := start
-		s.send(ctx, eventID, "/api/v1/room-booking/prestart", payload, prev, func() bool {
+		startsAt := iso(start)
+		cmd := Command{
+			CommandID: eventID, EventID: eventID, Action: "on", Reason: "prestart",
+			RoomCode: c.room, ClassKey: ClassKey(c.room), BookingID: c.id, Source: "room_booking",
+			StartsAt:  &startsAt,
+			ValidFrom: iso(start.Add(-prestartTgt)), ExpiresAt: iso(start.Add(10 * time.Minute)),
+		}
+		s.send(ctx, eventID, "/api/v1/room-booking/prestart", payload, cmd, prev, func() bool {
 			return startAt.Sub(s.now()) >= prestartMin
 		})
 	}
@@ -470,7 +490,7 @@ func (s *Service) processCheckout(ctx context.Context, sourceID int64, prev row)
 			checkedOut = t
 		}
 	}
-	next, err := s.nextBookingStart(ctx, e.RoomCode, e.BookingID, s.now())
+	next, err := nextBookingStart(ctx, s.db, e.RoomCode, e.BookingID, s.now())
 	if err != nil {
 		log.Printf("automation: next-booking lookup failed: %v", err)
 		return // try again next tick; the event is still unprocessed
@@ -484,23 +504,46 @@ func (s *Service) processCheckout(ctx context.Context, sourceID int64, prev row)
 		p.NextBookingStartsAt = &v
 	}
 	body, _ := json.Marshal(p)
+	if s.cfg.Mode == ModePull && next != nil && next.Sub(s.now()) <= nextClassGuard {
+		// Same rule the on-prem API applies: never switch the room off when
+		// the next class is running or starts within 15 minutes.
+		note := "next class starts within 15 minutes (or is running); room stays on"
+		if prev.status == "retry" || prev.status == "queued" {
+			s.finish(ctx, eventID, "rejected_409", prev.attempts, 0, result{}, note)
+		} else {
+			s.insert(ctx, eventID, "checkout", e.BookingID, e.RoomCode, &src, "rejected_409", body, note)
+		}
+		log.Printf("automation: checkout %s not queued: %s", eventID, note)
+		return
+	}
+	var nextISO *string
+	if next != nil {
+		v := iso(*next)
+		nextISO = &v
+	}
+	cmd := Command{
+		CommandID: eventID, EventID: eventID, Action: "off", Reason: "checkout",
+		RoomCode: e.RoomCode, ClassKey: ClassKey(e.RoomCode), BookingID: e.BookingID, Source: "room_booking",
+		NextBookingStartsAt: nextISO,
+		ValidFrom:           iso(s.now()), ExpiresAt: iso(occurred.Add(maxAge)),
+	}
 	if prev.status != "retry" {
 		s.insert(ctx, eventID, "checkout", e.BookingID, e.RoomCode, &src, "pending", body, "")
 	} else {
 		s.db.ExecContext(ctx, "UPDATE automation_events SET payload=? WHERE event_id=?", string(body), eventID)
 	}
-	s.send(ctx, eventID, "/api/v1/room-booking/checkout", body, prev, func() bool {
+	s.send(ctx, eventID, "/api/v1/room-booking/checkout", body, cmd, prev, func() bool {
 		return s.now().Sub(occurred) <= maxAge
 	})
 }
 
 // nextBookingStart finds the earliest confirmed, not-yet-finished booking of the
 // room that starts after `after` (looking up to 14 days ahead). nil = none.
-func (s *Service) nextBookingStart(ctx context.Context, roomCode, excludeID string, after time.Time) (*time.Time, error) {
+func nextBookingStart(ctx context.Context, db *sql.DB, roomCode, excludeID string, after time.Time) (*time.Time, error) {
 	local := after.In(wib)
 	from := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, wib)
 	to := from.AddDate(0, 0, 14)
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := db.QueryContext(ctx,
 		`SELECT b.booking_date, b.check_in_time, b.check_out_time
 		 FROM bookings b JOIN rooms r ON r.id = b.room_id
 		 WHERE r.name = ? AND b.status = 'confirmed' AND b.id <> ?

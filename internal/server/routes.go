@@ -161,6 +161,16 @@ func (s *Server) registerRoutes(r *gin.Engine) {
 		integration.GET("/events", integrationH.ListEvents)
 	}
 
+	// Node-RED pull endpoints: own API keys (AUTOMATION_PULL_API_KEYS), outbound
+	// HTTPS from on-prem only. Disabled (503) until a key is configured.
+	pullH := handlers.NewAutomationPullHandler(s.db)
+	pull := r.Group("/api/integration/v1/automation")
+	pull.Use(middleware.IntegrationAuth(s.cfg.AutomationPullKeys))
+	{
+		pull.GET("/commands", pullH.ListCommands)
+		pull.POST("/commands/:commandId/ack", pullH.AckCommand)
+	}
+
 	// -------------------------------------------------------------------------
 	// WebSocket
 	// -------------------------------------------------------------------------

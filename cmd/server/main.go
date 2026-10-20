@@ -33,7 +33,7 @@ func main() {
 			cfg.IntegrationWebhookURL, cfg.IntegrationWebhookSecret)
 	}
 
-	if cfg.AutomationMode == automation.ModeDryRun || cfg.AutomationMode == automation.ModeLive {
+	if cfg.AutomationMode == automation.ModeDryRun || cfg.AutomationMode == automation.ModeLive || cfg.AutomationMode == automation.ModePull {
 		svc := automation.New(db, automation.Config{
 			Mode:            cfg.AutomationMode,
 			BaseURL:         cfg.AutomationBaseURL,

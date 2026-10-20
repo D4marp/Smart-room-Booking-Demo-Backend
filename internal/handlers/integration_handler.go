@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/bookify-rooms/backend/internal/automation"
 	"github.com/bookify-rooms/backend/internal/models"
 	"github.com/bookify-rooms/backend/internal/utils"
 )
@@ -269,4 +270,72 @@ func (h *IntegrationHandler) ListAutomationEvents(c *gin.Context) {
 		}
 	}
 	utils.Success(c, http.StatusOK, out)
+}
+
+// ---- Node-RED pull endpoints (separate API keys) ---------------------------
+
+// AutomationPullHandler lets the on-prem Node-RED fetch ON/OFF commands over
+// HTTPS and confirm them. Commands only exist for real, confirmed bookings and
+// are re-validated on every fetch; nothing here lets a caller create a command.
+type AutomationPullHandler struct {
+	puller *automation.Puller
+}
+
+func NewAutomationPullHandler(db *sql.DB) *AutomationPullHandler {
+	return &AutomationPullHandler{puller: automation.NewPuller(db)}
+}
+
+func (h *AutomationPullHandler) ListCommands(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	cmds, err := h.puller.List(c.Request.Context(), strings.TrimSpace(c.Query("room")), limit)
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, "failed to list commands")
+		return
+	}
+	utils.Success(c, http.StatusOK, gin.H{
+		"serverTime": time.Now().In(jakarta).Format(time.RFC3339),
+		"commands":   cmds,
+	})
+}
+
+type ackRequest struct {
+	Success bool                       `json:"success"`
+	Message string                     `json:"message"`
+	Devices map[string]json.RawMessage `json:"devices"`
+}
+
+// deviceState accepts both {"ac":"command_sent"} and {"ac":{"state":"command_sent"}}.
+func deviceState(raw json.RawMessage) string {
+	var plain string
+	if json.Unmarshal(raw, &plain) == nil {
+		return plain
+	}
+	var obj struct {
+		State string `json:"state"`
+	}
+	if json.Unmarshal(raw, &obj) == nil {
+		return obj.State
+	}
+	return ""
+}
+
+func (h *AutomationPullHandler) AckCommand(c *gin.Context) {
+	var req ackRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, "invalid body: "+err.Error())
+		return
+	}
+	devices := map[string]string{}
+	for k, v := range req.Devices {
+		devices[k] = deviceState(v)
+	}
+	status, err := h.puller.Ack(c.Request.Context(), c.Param("commandId"), req.Success, devices, req.Message)
+	switch {
+	case err == sql.ErrNoRows:
+		utils.Error(c, http.StatusNotFound, "command not found")
+	case err != nil:
+		utils.Error(c, http.StatusConflict, err.Error())
+	default:
+		utils.Success(c, http.StatusOK, gin.H{"commandId": c.Param("commandId"), "status": status})
+	}
 }

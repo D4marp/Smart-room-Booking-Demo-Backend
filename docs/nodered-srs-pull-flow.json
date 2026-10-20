@@ -1,0 +1,166 @@
+[
+  {
+    "id": "srs_tab",
+    "type": "tab",
+    "label": "SRS pull ON/OFF",
+    "disabled": false,
+    "info": "Menarik perintah ON/OFF dari SRS tiap 10 detik. Set env SRS_PULL_KEY."
+  },
+  {
+    "id": "srs_inject",
+    "type": "inject",
+    "z": "srs_tab",
+    "name": "tiap 10 detik",
+    "props": [],
+    "repeat": "10",
+    "once": true,
+    "onceDelay": "5",
+    "topic": "",
+    "x": 130,
+    "y": 80,
+    "wires": [
+      [
+        "srs_req_fn"
+      ]
+    ]
+  },
+  {
+    "id": "srs_req_fn",
+    "type": "function",
+    "z": "srs_tab",
+    "name": "siapkan GET",
+    "func": "msg.method = 'GET';\nmsg.url = 'https://unesaroombooking.mekansm.co.id/api/integration/v1/automation/commands';\nmsg.headers = { 'X-API-Key': env.get('SRS_PULL_KEY') };\nreturn msg;",
+    "outputs": 1,
+    "x": 310,
+    "y": 80,
+    "wires": [
+      [
+        "srs_get"
+      ]
+    ]
+  },
+  {
+    "id": "srs_get",
+    "type": "http request",
+    "z": "srs_tab",
+    "name": "GET commands",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 490,
+    "y": 80,
+    "wires": [
+      [
+        "srs_split"
+      ]
+    ]
+  },
+  {
+    "id": "srs_split",
+    "type": "function",
+    "z": "srs_tab",
+    "name": "satu pesan per perintah",
+    "func": "if (msg.statusCode !== 200) { node.warn('SRS status ' + msg.statusCode); return null; }\nconst cmds = (msg.payload && msg.payload.data && msg.payload.data.commands) || [];\nreturn [cmds.map(c => ({ payload: c }))];",
+    "outputs": 1,
+    "x": 700,
+    "y": 80,
+    "wires": [
+      [
+        "srs_dedupe"
+      ]
+    ]
+  },
+  {
+    "id": "srs_dedupe",
+    "type": "function",
+    "z": "srs_tab",
+    "name": "jangan eksekusi dobel (60 dtk)",
+    "func": "const busy = flow.get('busy') || {};\nconst id = msg.payload.commandId;\nif ((busy[id] || 0) > Date.now()) return null;\nbusy[id] = Date.now() + 60000;\nflow.set('busy', busy);\nreturn msg;",
+    "outputs": 1,
+    "x": 930,
+    "y": 80,
+    "wires": [
+      [
+        "srs_to_control"
+      ]
+    ]
+  },
+  {
+    "id": "srs_to_control",
+    "type": "link out",
+    "z": "srs_tab",
+    "name": "ke kontrol AC/lampu/pintu",
+    "mode": "link",
+    "links": [],
+    "x": 1130,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "srs_from_control",
+    "type": "link in",
+    "z": "srs_tab",
+    "name": "hasil kontrol",
+    "links": [],
+    "x": 130,
+    "y": 200,
+    "wires": [
+      [
+        "srs_ack_fn"
+      ]
+    ]
+  },
+  {
+    "id": "srs_ack_fn",
+    "type": "function",
+    "z": "srs_tab",
+    "name": "siapkan ACK",
+    "func": "// msg.payload = perintah asli; msg.ack = { success, devices:{ac,lamp,door}, message }\nconst id = msg.payload.commandId;\nconst ack = msg.ack || { success: false, message: 'tidak ada hasil kontrol' };\nmsg.method = 'POST';\nmsg.url = 'https://unesaroombooking.mekansm.co.id/api/integration/v1/automation/commands/' + encodeURIComponent(id) + '/ack';\nmsg.headers = { 'X-API-Key': env.get('SRS_PULL_KEY'), 'Content-Type': 'application/json' };\nmsg.payload = { success: !!ack.success, devices: ack.devices || {}, message: ack.message || '' };\nreturn msg;",
+    "outputs": 1,
+    "x": 310,
+    "y": 200,
+    "wires": [
+      [
+        "srs_post"
+      ]
+    ]
+  },
+  {
+    "id": "srs_post",
+    "type": "http request",
+    "z": "srs_tab",
+    "name": "POST ack",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 490,
+    "y": 200,
+    "wires": [
+      [
+        "srs_dbg"
+      ]
+    ]
+  },
+  {
+    "id": "srs_dbg",
+    "type": "debug",
+    "z": "srs_tab",
+    "name": "hasil ack",
+    "active": true,
+    "tosidebar": true,
+    "complete": "payload",
+    "x": 680,
+    "y": 200,
+    "wires": []
+  }
+]

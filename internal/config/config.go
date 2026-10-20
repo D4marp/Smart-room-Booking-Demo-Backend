@@ -33,6 +33,8 @@ type Config struct {
 	AutomationHMACSecret      string
 	AutomationRoomCodes       []string
 	AutomationCheckoutSources []string
+	// Keys for the Node-RED pull endpoints (separate from INTEGRATION_API_KEYS).
+	AutomationPullKeys []string
 }
 
 func Load() *Config {
@@ -68,6 +70,7 @@ func Load() *Config {
 		AutomationRoomCodes: splitCSV(getEnv("AUTOMATION_ROOM_CODES",
 			"Q1.05.03,Q1.05.05,Q1.05.16,Q1.06.15,Q1.06.05")),
 		AutomationCheckoutSources: splitCSV(getEnv("AUTOMATION_CHECKOUT_SOURCES", "kiosk_button")),
+		AutomationPullKeys:        splitCSV(getEnv("AUTOMATION_PULL_API_KEYS", "")),
 	}
 }
 
