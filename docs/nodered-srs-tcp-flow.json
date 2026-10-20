@@ -1,0 +1,105 @@
+[
+  {
+    "id": "tcp_tab",
+    "type": "tab",
+    "label": "SRS relay (tcp in)",
+    "disabled": false,
+    "info": "Menerima 1 baris JSON dari srs_pull_relay.py lewat TCP lokal, memanggil alur kontrol, membalas 1 baris JSON."
+  },
+  {
+    "id": "tcp_in",
+    "type": "tcp in",
+    "z": "tcp_tab",
+    "name": "dari relay SRS",
+    "server": "server",
+    "host": "",
+    "port": "5051",
+    "datamode": "stream",
+    "datatype": "utf8",
+    "newline": "\\n",
+    "topic": "",
+    "trim": false,
+    "base64": false,
+    "tls": "",
+    "x": 130,
+    "y": 100,
+    "wires": [
+      [
+        "tcp_parse"
+      ]
+    ]
+  },
+  {
+    "id": "tcp_parse",
+    "type": "function",
+    "z": "tcp_tab",
+    "name": "baca 1 baris JSON",
+    "func": "const sid = (msg._session && msg._session.id) || 'x';\nconst bufs = context.get('bufs') || {};\nbufs[sid] = (bufs[sid] || '') + msg.payload.toString();\nif (bufs[sid].indexOf('\\n') < 0) { context.set('bufs', bufs); return null; }\nconst line = bufs[sid].split('\\n')[0];\ndelete bufs[sid];\ncontext.set('bufs', bufs);\nlet c;\ntry { c = JSON.parse(line); } catch (e) {\n  msg.payload = JSON.stringify({ success: false, devices: {}, message: 'JSON tidak valid' }) + '\\n';\n  return [null, msg];\n}\nmsg.command = c;\nmsg.payload = { roomCode: c.roomCode, classKey: c.classKey, action: c.action, eventId: c.eventId, bookingId: c.bookingId, source: c.source };\nreturn [msg, null];",
+    "outputs": 2,
+    "x": 330,
+    "y": 100,
+    "wires": [
+      [
+        "tcp_to_control"
+      ],
+      [
+        "tcp_reply"
+      ]
+    ]
+  },
+  {
+    "id": "tcp_to_control",
+    "type": "link out",
+    "z": "tcp_tab",
+    "name": "ke kontrol AC/lampu/pintu",
+    "mode": "link",
+    "links": [],
+    "x": 560,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "tcp_from_control",
+    "type": "link in",
+    "z": "tcp_tab",
+    "name": "hasil kontrol",
+    "links": [],
+    "x": 130,
+    "y": 220,
+    "wires": [
+      [
+        "tcp_build_reply"
+      ]
+    ]
+  },
+  {
+    "id": "tcp_build_reply",
+    "type": "function",
+    "z": "tcp_tab",
+    "name": "balasan untuk relay",
+    "func": "// WAJIB: msg._session tidak boleh hilang di alur kontrol, dan isi msg.ack = { success, devices:{ac,lamp,door}, message }\nconst ack = msg.ack || { success: false, devices: {}, message: 'tidak ada hasil kontrol' };\nmsg.payload = JSON.stringify({ success: !!ack.success, devices: ack.devices || {}, message: ack.message || '' }) + '\\n';\nreturn msg;",
+    "outputs": 1,
+    "x": 330,
+    "y": 220,
+    "wires": [
+      [
+        "tcp_reply"
+      ]
+    ]
+  },
+  {
+    "id": "tcp_reply",
+    "type": "tcp out",
+    "z": "tcp_tab",
+    "name": "balas ke relay",
+    "host": "",
+    "port": "",
+    "beserver": "reply",
+    "base64": false,
+    "end": true,
+    "tls": "",
+    "x": 560,
+    "y": 160,
+    "wires": []
+  }
+]

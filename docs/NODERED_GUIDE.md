@@ -1,6 +1,6 @@
 # Panduan Node-RED — Menarik Perintah ON/OFF dari SRS
 
-Untuk tim on-prem. Anda **tidak perlu membuka port atau VPN**: Node-RED hanya memanggil SRS lewat HTTPS keluar,
+Untuk tim on-prem. (Hanya punya `tcp in`, tanpa node `http request`? Lihat `NODERED_TCP_BRIDGE.md`.) Anda **tidak perlu membuka port atau VPN**: Node-RED hanya memanggil SRS lewat HTTPS keluar,
 mengeksekusi perintah ke AC, lampu, dan pintu, lalu melapor hasilnya.
 
 ```
