@@ -47,6 +47,7 @@ func main() {
 			Secret:          cfg.AutomationHMACSecret,
 			RoomCodes:       cfg.AutomationRoomCodes,
 			CheckoutSources: cfg.AutomationCheckoutSources,
+			AutoOffMinutes:  cfg.AutomationAutoOffMinutes,
 		})
 		go svc.Run(context.Background())
 	}

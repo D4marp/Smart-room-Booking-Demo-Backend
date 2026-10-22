@@ -14,14 +14,17 @@ import (
 // Field names match the on-prem adapter payload (roomCode, classKey, action,
 // eventId, bookingId, source) so the existing control flow can be reused.
 type Command struct {
-	CommandID           string  `json:"commandId"`
-	EventID             string  `json:"eventId"`
-	Action              string  `json:"action"` // on | off
-	Reason              string  `json:"reason"` // prestart | checkout
-	RoomCode            string  `json:"roomCode"`
-	ClassKey            string  `json:"classKey"`
-	BookingID           string  `json:"bookingId"`
-	Source              string  `json:"source"`
+	CommandID string `json:"commandId"`
+	EventID   string `json:"eventId"`
+	Action    string `json:"action"` // on | off
+	Reason    string `json:"reason"` // prestart | checkout
+	RoomCode  string `json:"roomCode"`
+	ClassKey  string `json:"classKey"`
+	BookingID string `json:"bookingId"`
+	Source    string `json:"source"`
+	// Trigger tells what caused the command: "schedule" (T-15 ON), "kiosk_button"
+	// (checkout on the tablet) or "auto_off" (room left on after the class ended).
+	Trigger             string  `json:"trigger"`
 	StartsAt            *string `json:"startsAt"`
 	NextBookingStartsAt *string `json:"nextBookingStartsAt"`
 	ValidFrom           string  `json:"validFrom"`
@@ -188,7 +191,7 @@ func (p *Puller) Ack(ctx context.Context, commandID string, success bool, device
 	var status string
 	var attempts int
 	err := p.db.QueryRowContext(ctx,
-		"SELECT status, attempts FROM automation_events WHERE event_id=? AND event_type IN ('prestart','checkout')", commandID).
+		"SELECT status, attempts FROM automation_events WHERE event_id=? AND event_type IN ('prestart','checkout','autooff')", commandID).
 		Scan(&status, &attempts)
 	if err != nil {
 		return "", sql.ErrNoRows

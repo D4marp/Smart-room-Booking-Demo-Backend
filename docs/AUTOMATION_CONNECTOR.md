@@ -37,6 +37,7 @@ AUTOMATION_BASE_URL=http://<alamat-mini-pc>:5001
 AUTOMATION_HMAC_SECRET=<sama dengan ROOM_BOOKING_HMAC_SECRET di on-prem, >= 32 karakter>
 AUTOMATION_ROOM_CODES=Q1.01.03        # tambah ruang lain setelah gateway-nya diverifikasi
 AUTOMATION_REQUIRED_DEVICES=ac,lamp   # perangkat yang wajib dilaporkan di ack
+AUTOMATION_AUTO_OFF_MINUTES=15        # OFF otomatis N menit setelah kelas selesai (0 = mati)
 AUTOMATION_CHECKOUT_SOURCES=kiosk_button
 ```
 lalu `docker compose up -d --build api`.
@@ -101,7 +102,7 @@ SRS (VPS)                                        On-prem
   "action":"on","reason":"prestart","roomCode":"Q1.05.03","classKey":"q10503",
   "bookingId":"<bookingId>","source":"room_booking",
   "startsAt":"2026-10-20T07:00:00+07:00","nextBookingStartsAt":null,
-  "validFrom":"2026-10-20T06:45:00+07:00","expiresAt":"2026-10-20T07:10:00+07:00","attempts":0}]}}
+  "validFrom":"2026-10-20T06:45:00+07:00","expiresAt":"2026-10-20T07:10:00+07:00","attempts":0,"trigger":"schedule"}]}}
 ```
 Nama field (`roomCode`, `classKey`, `action`, `eventId`, `bookingId`, `source`) sama dengan payload adapter
 on-prem, jadi alur kontrol yang sudah ada bisa dipakai ulang.
@@ -125,7 +126,11 @@ on-prem, jadi alur kontrol yang sudah ada bisa dipakai ulang.
 - **ON**: dibuat saat sisa waktu ≤ 15 menit sebelum kelas, berlaku sampai 10 menit setelah jam mulai.
   Dicek ulang **setiap kali** Node-RED menarik: kelas dibatalkan / dipindah / sudah checkout → perintah
   hilang (tidak pernah diberikan).
-- **OFF**: hanya dari tombol **Geser Checkout** di tablet (`kiosk_button`), berlaku 15 menit. Bila kelas berikutnya
+- **OFF otomatis (`trigger:"auto_off"`)**: bila tidak ada yang checkout, ruangan dimatikan **15 menit setelah jam selesai**
+  (`AUTOMATION_AUTO_OFF_MINUTES=15`, `0` = nonaktif). Berlaku 15 menit sejak waktunya; tidak dibuat bila sudah ada OFF dari
+  checkout tablet, bila kelas berikutnya berjalan / mulai ≤ 15 menit, atau bila booking dibatalkan. Memakai `reason:"checkout"`
+  (agar diterima backend on-prem) dengan field tambahan `trigger:"auto_off"` sebagai pembeda.
+- **OFF**: dari tombol **Geser Checkout** di tablet (`kiosk_button`, `trigger:"kiosk_button"`), berlaku 15 menit. Bila kelas berikutnya
   sudah berjalan atau mulai ≤ 15 menit, OFF **tidak dibuat / ditarik** (aturan yang sama dengan API on-prem).
 - Perintah kedaluwarsa tidak pernah ditawarkan. Bila Node-RED mati lama, perintah lama hangus sendiri.
 - Tidak ada endpoint untuk **membuat** perintah: perintah hanya lahir dari booking `confirmed` dan checkout nyata.
@@ -140,6 +145,7 @@ AUTOMATION_MODE=pull
 AUTOMATION_PULL_API_KEYS=<openssl rand -hex 32>
 AUTOMATION_ROOM_CODES=Q1.01.03        # tambah ruang lain setelah gateway-nya diverifikasi
 AUTOMATION_REQUIRED_DEVICES=ac,lamp   # perangkat yang wajib dilaporkan di ack
+AUTOMATION_AUTO_OFF_MINUTES=15        # OFF otomatis N menit setelah kelas selesai (0 = mati)
 ```
 lalu `docker compose up -d api`. Kunci hanya diberikan ke Node-RED (variabel lingkungan `SRS_PULL_KEY`, bukan di
 dashboard/browser).

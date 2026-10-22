@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
@@ -38,6 +39,8 @@ type Config struct {
 	AutomationPullKeys []string
 	// Devices an ack must confirm as command_sent (default ac,lamp; door is not controlled).
 	AutomationRequiredDevices []string
+	// Minutes after a class ends before the room is switched off when nobody checked out (0 = off).
+	AutomationAutoOffMinutes int
 }
 
 func Load() *Config {
@@ -76,6 +79,7 @@ func Load() *Config {
 		AutomationCheckoutSources: splitCSV(getEnv("AUTOMATION_CHECKOUT_SOURCES", "kiosk_button")),
 		AutomationPullKeys:        splitCSV(getEnv("AUTOMATION_PULL_API_KEYS", "")),
 		AutomationRequiredDevices: splitCSV(getEnv("AUTOMATION_REQUIRED_DEVICES", "ac,lamp")),
+		AutomationAutoOffMinutes:  atoiDefault(getEnv("AUTOMATION_AUTO_OFF_MINUTES", "15"), 15),
 	}
 }
 
@@ -312,6 +316,14 @@ func firstEnv(keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func atoiDefault(raw string, def int) int {
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || n < 0 {
+		return def
+	}
+	return n
 }
 
 func splitCSV(raw string) []string {

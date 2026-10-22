@@ -49,6 +49,9 @@ type Config struct {
 	Secret          string
 	RoomCodes       []string // only these rooms are controlled
 	CheckoutSources []string // checkout event sources that trigger OFF
+	// AutoOffMinutes: switch the room off this long after a class ends when nobody
+	// checked out (0 = disabled). Only in pull / dry_run mode.
+	AutoOffMinutes int
 }
 
 type Service struct {
@@ -110,6 +113,7 @@ func (s *Service) Run(ctx context.Context) {
 	for {
 		s.TickPrestart(ctx)
 		s.TickCheckout(ctx)
+		s.TickAutoOff(ctx)
 		select {
 		case <-ctx.Done():
 			return
@@ -342,6 +346,7 @@ func (s *Service) TickPrestart(ctx context.Context) {
 		cmd := Command{
 			CommandID: eventID, EventID: eventID, Action: "on", Reason: "prestart",
 			RoomCode: c.room, ClassKey: ClassKey(c.room), BookingID: c.id, Source: "room_booking",
+			Trigger:   "schedule",
 			StartsAt:  &startsAt,
 			ValidFrom: iso(start.Add(-prestartTgt)), ExpiresAt: iso(start.Add(10 * time.Minute)),
 		}
@@ -524,6 +529,7 @@ func (s *Service) processCheckout(ctx context.Context, sourceID int64, prev row)
 	cmd := Command{
 		CommandID: eventID, EventID: eventID, Action: "off", Reason: "checkout",
 		RoomCode: e.RoomCode, ClassKey: ClassKey(e.RoomCode), BookingID: e.BookingID, Source: "room_booking",
+		Trigger:             "kiosk_button",
 		NextBookingStartsAt: nextISO,
 		ValidFrom:           iso(s.now()), ExpiresAt: iso(occurred.Add(maxAge)),
 	}

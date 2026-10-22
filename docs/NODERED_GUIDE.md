@@ -45,7 +45,8 @@ mengeksekusi perintah ke AC, lampu, dan pintu, lalu melapor hasilnya.
 | `commandId` (= `eventId`) | ID unik. Dipakai di URL ack dan untuk anti-ganda |
 | `action` | `"on"` → AC ON, lampu ON, pintu dibuka · `"off"` → AC OFF, lampu OFF, pintu kembali mode akses normal |
 | `roomCode`, `classKey` | Memilih perangkat ruang (`q10103`, dst.) |
-| `reason` | `prestart` (15 menit sebelum kelas) atau `checkout` (tombol tablet ditekan) |
+| `reason` | `prestart` (15 menit sebelum kelas) atau `checkout` (OFF) |
+| `trigger` | Penyebab: `schedule` (ON T-15), `kiosk_button` (tombol tablet ditekan), atau `auto_off` (tidak ada yang checkout; ruangan dimatikan 15 menit setelah kelas selesai) |
 | `validFrom`, `expiresAt` | **Jendela eksekusi.** Jangan jalankan di luar rentang ini |
 | `startsAt` / `nextBookingStartsAt` | Informasi saja (kelas ini / kelas berikutnya) |
 | `attempts` | Berapa kali ack gagal sebelumnya |
@@ -98,9 +99,9 @@ Respons ack: `200` ok · `404` ID tak dikenal · `409` perintah sudah `expired/c
 
 - **ON** dibuat saat sisa waktu ≤ 15 menit, hanya untuk booking `confirmed`. Kelas yang **dibatalkan atau dipindah** → perintahnya
   hilang dari `GET` (dicek ulang setiap kali Anda menarik).
-- **OFF** hanya dari tombol **Geser Checkout** di tablet Philips. Bila kelas berikutnya sudah berjalan atau mulai ≤ 15 menit,
-  OFF tidak dibuat (atau ditarik kembali).
-- Checkout otomatis sistem (30 menit setelah kelas selesai) **tidak** membuat OFF.
+- **OFF** dari tombol **Geser Checkout** di tablet Philips, atau **otomatis 15 menit setelah jam selesai** bila tidak ada yang checkout
+  (`trigger:"auto_off"`). Bila kelas berikutnya sudah berjalan atau mulai ≤ 15 menit, OFF tidak dibuat (atau ditarik kembali).
+- Checkout otomatis tablet (30 menit setelah kelas selesai) tidak membuat OFF tersendiri; OFF sudah datang lebih dulu lewat `auto_off`.
 - Interval tarik yang disarankan **10 detik**; jangan di bawah 5 detik.
 
 ## 7. Uji tanpa Node-RED
