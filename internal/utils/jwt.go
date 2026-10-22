@@ -30,13 +30,34 @@ func GenerateToken(userID, role, secret, expiry string) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
+// KioskTokenLifetime is how long, counted from issue time, a token of the
+// room-tablet role ("booking") stays valid regardless of the (shorter) expiry
+// embedded in it. Tablets installed before long-lived kiosk tokens existed
+// carry 7-day tokens; this keeps them working without anyone visiting the
+// room. The signature is always verified. 0 disables the extension.
+var KioskTokenLifetime time.Duration
+
+const kioskRole = "booking"
+
 func ValidateToken(tokenStr, secret string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+	keyFunc := func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
 		return []byte(secret), nil
-	})
+	}
+	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, keyFunc)
+	if err != nil && errors.Is(err, jwt.ErrTokenExpired) && KioskTokenLifetime > 0 {
+		// Re-parse without time checks (signature is still verified) and apply
+		// the kiosk policy ourselves.
+		lax, laxErr := jwt.ParseWithClaims(tokenStr, &Claims{}, keyFunc, jwt.WithoutClaimsValidation())
+		if laxErr == nil && lax.Valid {
+			if c, ok := lax.Claims.(*Claims); ok && c.Role == kioskRole &&
+				c.IssuedAt != nil && time.Since(c.IssuedAt.Time) < KioskTokenLifetime {
+				return c, nil
+			}
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

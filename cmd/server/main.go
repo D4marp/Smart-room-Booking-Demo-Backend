@@ -3,16 +3,23 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/bookify-rooms/backend/internal/automation"
 	"github.com/bookify-rooms/backend/internal/config"
 	"github.com/bookify-rooms/backend/internal/database"
 	"github.com/bookify-rooms/backend/internal/integration"
 	"github.com/bookify-rooms/backend/internal/server"
+	"github.com/bookify-rooms/backend/internal/utils"
 )
 
 func main() {
 	cfg := config.Load()
+
+	// Room tablets: keep a kiosk token valid for KIOSK_JWT_EXPIRY after it was issued.
+	if d, err := time.ParseDuration(cfg.KioskJWTExpiry); err == nil {
+		utils.KioskTokenLifetime = d
+	}
 
 	db, err := database.Connect(cfg.DatabaseURL)
 	if err != nil {
