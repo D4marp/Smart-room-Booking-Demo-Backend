@@ -14,13 +14,26 @@ import (
 )
 
 type AuthHandler struct {
-	db        *sql.DB
-	jwtSecret string
-	jwtExpiry string
+	db          *sql.DB
+	jwtSecret   string
+	jwtExpiry   string
+	kioskExpiry string
 }
 
-func NewAuthHandler(db *sql.DB, jwtSecret, jwtExpiry string) *AuthHandler {
-	return &AuthHandler{db: db, jwtSecret: jwtSecret, jwtExpiry: jwtExpiry}
+// NewAuthHandler builds the auth handler. kioskExpiry is the (long) token
+// lifetime for the unattended room tablets (role "booking"); empty = same as
+// jwtExpiry.
+func NewAuthHandler(db *sql.DB, jwtSecret, jwtExpiry, kioskExpiry string) *AuthHandler {
+	return &AuthHandler{db: db, jwtSecret: jwtSecret, jwtExpiry: jwtExpiry, kioskExpiry: kioskExpiry}
+}
+
+// expiryFor returns the token lifetime for a role. Room tablets stay logged in
+// for months; a weekly expiry would make check-out/feedback fail with 401.
+func (h *AuthHandler) expiryFor(role string) string {
+	if role == string(models.RoleBooking) && h.kioskExpiry != "" {
+		return h.kioskExpiry
+	}
+	return h.jwtExpiry
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -66,7 +79,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(user.ID, string(user.Role), h.jwtSecret, h.jwtExpiry)
+	token, err := utils.GenerateToken(user.ID, string(user.Role), h.jwtSecret, h.expiryFor(string(user.Role)))
 	if err != nil {
 		utils.Error(c, http.StatusInternalServerError, "failed to generate token")
 		return
@@ -102,7 +115,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(user.ID, string(user.Role), h.jwtSecret, h.jwtExpiry)
+	token, err := utils.GenerateToken(user.ID, string(user.Role), h.jwtSecret, h.expiryFor(string(user.Role)))
 	if err != nil {
 		utils.Error(c, http.StatusInternalServerError, "failed to generate token")
 		return

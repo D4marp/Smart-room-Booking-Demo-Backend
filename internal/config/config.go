@@ -16,6 +16,7 @@ type Config struct {
 	DatabaseURL        string
 	JWTSecret          string
 	JWTExpiry          string // e.g. "168h"
+	KioskJWTExpiry     string // token lifetime for room tablets (role booking), e.g. "8760h"
 	UploadsDir         string
 	BaseURL            string
 	AllowedOrigins     []string
@@ -54,6 +55,7 @@ func Load() *Config {
 		DatabaseURL:        databaseURL,
 		JWTSecret:          getEnv("JWT_SECRET", "change-this-secret-in-production"),
 		JWTExpiry:          getEnv("JWT_EXPIRY", "168h"),
+		KioskJWTExpiry:     getEnv("KIOSK_JWT_EXPIRY", "8760h"),
 		UploadsDir:         getEnv("UPLOADS_DIR", "./uploads"),
 		BaseURL:            getEnv("BASE_URL", "http://localhost:8080"),
 		AllowedOrigins:     []string{getEnv("ALLOWED_ORIGINS", "*")},

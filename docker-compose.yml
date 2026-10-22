@@ -39,6 +39,7 @@ services:
       DB_NAME: ${DB_NAME:-bookify}
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-change-in-production}
       JWT_EXPIRY: ${JWT_EXPIRY:-168h}
+      KIOSK_JWT_EXPIRY: ${KIOSK_JWT_EXPIRY:-8760h}
       PORT: 8080
       UPLOADS_DIR: ./uploads
       BASE_URL: ${BASE_URL:-http://localhost:8080}

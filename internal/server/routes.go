@@ -22,7 +22,7 @@ func (s *Server) registerRoutes(r *gin.Engine) {
 	// -------------------------------------------------------------------------
 	// Auth
 	// -------------------------------------------------------------------------
-	authH := handlers.NewAuthHandler(s.db, s.cfg.JWTSecret, s.cfg.JWTExpiry)
+	authH := handlers.NewAuthHandler(s.db, s.cfg.JWTSecret, s.cfg.JWTExpiry, s.cfg.KioskJWTExpiry)
 	auth := r.Group("/api/auth")
 	{
 		auth.POST("/register", authH.Register)
