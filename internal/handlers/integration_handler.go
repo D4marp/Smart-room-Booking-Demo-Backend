@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -281,8 +282,8 @@ type AutomationPullHandler struct {
 	puller *automation.Puller
 }
 
-func NewAutomationPullHandler(db *sql.DB) *AutomationPullHandler {
-	return &AutomationPullHandler{puller: automation.NewPuller(db)}
+func NewAutomationPullHandler(db *sql.DB, requiredDevices []string) *AutomationPullHandler {
+	return &AutomationPullHandler{puller: automation.NewPuller(db, requiredDevices)}
 }
 
 func (h *AutomationPullHandler) ListCommands(c *gin.Context) {
@@ -330,9 +331,12 @@ func (h *AutomationPullHandler) AckCommand(c *gin.Context) {
 		devices[k] = deviceState(v)
 	}
 	status, err := h.puller.Ack(c.Request.Context(), c.Param("commandId"), req.Success, devices, req.Message)
+	var incomplete *automation.IncompleteAckError
 	switch {
 	case err == sql.ErrNoRows:
 		utils.Error(c, http.StatusNotFound, "command not found")
+	case errors.As(err, &incomplete):
+		utils.Error(c, http.StatusUnprocessableEntity, incomplete.Error())
 	case err != nil:
 		utils.Error(c, http.StatusConflict, err.Error())
 	default:

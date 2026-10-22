@@ -60,7 +60,7 @@ func TestAutomationPullEndpoints(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := NewAutomationPullHandler(db)
+	h := NewAutomationPullHandler(db, nil) // default: ac + lamp
 	g := r.Group("/automation")
 	g.Use(middleware.IntegrationAuth([]string{"node-red-key"}))
 	g.GET("/commands", h.ListCommands)
@@ -95,9 +95,13 @@ func TestAutomationPullEndpoints(t *testing.T) {
 	if code, _ := call("POST", "/automation/commands/nope/ack", "node-red-key", map[string]any{"success": true}); code != http.StatusNotFound {
 		t.Fatalf("unknown command -> %d", code)
 	}
-	// nested device format, as returned by the on-prem adapter
-	ack := map[string]any{"success": true, "devices": map[string]any{
-		"ac": map[string]string{"state": "command_sent"}, "lamp": map[string]string{"state": "command_sent"}, "door": map[string]string{"state": "command_sent"}}}
+	// a success claim that lacks a required device is rejected loudly (422), not silently accepted
+	partial := map[string]any{"success": true, "devices": map[string]any{"ac": "command_sent"}}
+	if code, out := call("POST", "/automation/commands/evt-b1-prestart-x/ack", "node-red-key", partial); code != http.StatusUnprocessableEntity {
+		t.Fatalf("incomplete ack -> %d %v, want 422", code, out)
+	}
+	// the backend on the mini PC reports AC + lamp only (no door), in the plain format
+	ack := map[string]any{"success": true, "devices": map[string]any{"ac": "command_sent", "lamp": "command_sent"}}
 	code, out = call("POST", "/automation/commands/evt-b1-prestart-x/ack", "node-red-key", ack)
 	if code != 200 || out["data"].(map[string]any)["status"] != "acked" {
 		t.Fatalf("ack = %d %v", code, out)

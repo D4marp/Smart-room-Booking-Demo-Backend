@@ -35,7 +35,8 @@ Konektor **tidak pernah mengirim apa pun** kecuali `AUTOMATION_MODE=live`. Ada j
 AUTOMATION_MODE=off            # off | dry_run | live
 AUTOMATION_BASE_URL=http://<alamat-mini-pc>:5001
 AUTOMATION_HMAC_SECRET=<sama dengan ROOM_BOOKING_HMAC_SECRET di on-prem, >= 32 karakter>
-AUTOMATION_ROOM_CODES=Q1.05.03,Q1.05.05,Q1.05.16,Q1.06.15,Q1.06.05
+AUTOMATION_ROOM_CODES=Q1.01.03        # tambah ruang lain setelah gateway-nya diverifikasi
+AUTOMATION_REQUIRED_DEVICES=ac,lamp   # perangkat yang wajib dilaporkan di ack
 AUTOMATION_CHECKOUT_SOURCES=kiosk_button
 ```
 lalu `docker compose up -d --build api`.
@@ -109,8 +110,13 @@ on-prem, jadi alur kontrol yang sudah ada bisa dipakai ulang.
 ```json
 {"success":true,"devices":{"ac":{"state":"command_sent"},"lamp":{"state":"command_sent"},"door":{"state":"command_sent"}},"message":""}
 ```
-- `success:true` hanya dianggap berhasil bila **ketiga** perangkat (`ac`, `lamp`, `door`) berstatus `command_sent`.
-- Gagal/sebagian → perintah tetap di antrean dan ditawarkan lagi (maks 5 kali, atau sampai kedaluwarsa).
+- `success:true` hanya dianggap berhasil bila **semua perangkat wajib** berstatus `command_sent`. Bawaan: **`ac` dan `lamp`**
+  (pintu tidak dikendalikan oleh integrasi backend Mini PC). Atur lewat `AUTOMATION_REQUIRED_DEVICES` (mis. `ac,lamp,door`).
+  Field perangkat tambahan (mis. `door`) diterima dan diabaikan.
+- `success:true` tetapi ada perangkat wajib yang tidak dilaporkan → **HTTP 422** (`ack rejected: devices not reported as
+  command_sent: ...`); ack **tidak** diterima, perintah tetap di antrean, dan percobaan tidak dihitung. Pemanggil harus
+  memeriksa kode HTTP, bukan hanya mengira "200 = berhasil".
+- `success:false` (gagal) → perintah tetap di antrean dan ditawarkan lagi (maks 5 kali, atau sampai kedaluwarsa).
 - Ack ulang pada perintah yang sudah `acked` aman (idempoten). Perintah tak dikenal → `404`.
 - `command_sent` = perintah diserahkan, **bukan** bukti AC mati / pintu terkunci.
 
@@ -132,7 +138,8 @@ on-prem, jadi alur kontrol yang sudah ada bisa dipakai ulang.
 ```
 AUTOMATION_MODE=pull
 AUTOMATION_PULL_API_KEYS=<openssl rand -hex 32>
-AUTOMATION_ROOM_CODES=Q1.05.03,Q1.05.05,Q1.05.16,Q1.06.15,Q1.06.05
+AUTOMATION_ROOM_CODES=Q1.01.03        # tambah ruang lain setelah gateway-nya diverifikasi
+AUTOMATION_REQUIRED_DEVICES=ac,lamp   # perangkat yang wajib dilaporkan di ack
 ```
 lalu `docker compose up -d api`. Kunci hanya diberikan ke Node-RED (variabel lingkungan `SRS_PULL_KEY`, bukan di
 dashboard/browser).

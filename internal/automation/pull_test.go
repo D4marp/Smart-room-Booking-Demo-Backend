@@ -3,6 +3,7 @@ package automation
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -54,7 +55,7 @@ func TestPullFlow(t *testing.T) {
 	clock := at(6, 50)
 	svc := New(db, Config{Mode: ModePull, RoomCodes: []string{"Q1.05.03"}, CheckoutSources: []string{"kiosk_button"}})
 	svc.now = func() time.Time { return clock }
-	pull := NewPuller(db)
+	pull := NewPuller(db, []string{"ac", "lamp", "door"}) // strict: all three required here
 	pull.now = func() time.Time { return clock }
 	ctx := t.Context()
 	svc.initCursor(ctx)
@@ -141,8 +142,24 @@ func TestPullFlow(t *testing.T) {
 	book("b4x", "09:20", "10:00", "confirmed")
 	svc.TickPrestart(ctx)
 	idx := "evt-b4x-prestart-" + day.Format("20060102") + "0920"
-	if st, _ := pull.Ack(ctx, idx, true, map[string]string{"ac": "command_sent", "lamp": "command_sent"}, ""); st != "queued" {
-		t.Fatalf("missing door must not count as success, got %s", st)
+	st, err := pull.Ack(ctx, idx, true, map[string]string{"ac": "command_sent", "lamp": "command_sent"}, "")
+	var inc *IncompleteAckError
+	if st != "queued" || !errors.As(err, &inc) || len(inc.Missing) != 1 || inc.Missing[0] != "door" {
+		t.Fatalf("missing door must be rejected as incomplete, got %s %v", st, err)
+	}
+	var att int
+	db.QueryRow("SELECT attempts FROM automation_events WHERE event_id=?", idx).Scan(&att)
+	if att != 0 {
+		t.Fatalf("a rejected (incomplete) ack must not consume an attempt, attempts=%d", att)
+	}
+	// AC + lamp only (door not controlled): accepted when only those two are required
+	book("b4y", "09:18", "10:00", "confirmed")
+	svc.TickPrestart(ctx)
+	idy := "evt-b4y-prestart-" + day.Format("20060102") + "0918"
+	lenient := NewPuller(db, nil)
+	lenient.now = pull.now
+	if st, err := lenient.Ack(ctx, idy, true, map[string]string{"ac": "command_sent", "lamp": "command_sent"}, ""); err != nil || st != "acked" {
+		t.Fatalf("ac+lamp must be enough with the default required devices, got %s %v", st, err)
 	}
 
 	// 6) expiry: not executed in time -> expired

@@ -62,7 +62,7 @@ Untuk **setiap** perintah:
 3. **Kirim ke ketiga cabang** sesuai `action`:
    - `on`: AC ON (MQTT `cmnd/<kode>/IRHVAC`), lampu ON (UG65), pintu **dibuka** (MinMoe).
    - `off`: AC OFF, lampu OFF, pintu **kembali ke mode akses normal**.
-4. **Ack hanya setelah ketiganya benar-benar diserahkan**:
+4. **Ack hanya setelah perangkat yang wajib benar-benar diserahkan** (bawaan AC + lampu; pintu tidak dikendalikan bila integrasi Anda tidak mengirimnya):
 
 ```
 POST {base}/commands/{commandId}/ack
@@ -79,9 +79,9 @@ Subflow kontrol Anda harus mengembalikan pesan berisi:
 
 | Situasi | Yang dikirim |
 |---|---|
-| Ketiganya `command_sent` | `success: true` → status `acked`, perintah hilang |
+| Semua perangkat wajib (bawaan `ac` + `lamp`) `command_sent` | `success: true` → status `acked`, perintah hilang |
 | Salah satu gagal / tidak merespons | `success: false`, isi `devices` dengan hasil per perangkat dan `message` penyebab. SRS menawarkan perintah lagi (maksimal 5 kali atau sampai `expiresAt`) |
-| `success: true` tapi `devices` kurang salah satu | Dianggap **gagal** oleh SRS |
+| `success: true` tapi `devices` kurang salah satu perangkat wajib | **HTTP 422**, ack ditolak, perintah tetap di antrean |
 
 Respons ack: `200` ok · `404` ID tak dikenal · `409` perintah sudah `expired/cancelled/rejected` (tidak bisa di-ack lagi) ·
 `401` kunci salah. `command_sent` hanya berarti perintah **diserahkan**, bukan bukti AC sudah mati atau pintu sudah terkunci.
@@ -134,3 +134,4 @@ Jawaban `401` = kunci salah, `200` dengan `"commands":[]` = tersambung dan antre
 | Perintah OFF tidak muncul setelah checkout | Kelas berikutnya mulai ≤ 15 menit, atau checkout dari tablet berasal dari checkout otomatis; atau tablet perlu login ulang |
 | Ack `409` | Perintah sudah kedaluwarsa/dibatalkan; abaikan |
 | Ack `404` | `commandId` salah (placeholder/salah salin) |
+| Ack `422` | `success:true` tapi ada perangkat wajib yang tidak ada di `devices`; perbaiki isi ack |

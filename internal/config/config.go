@@ -36,6 +36,8 @@ type Config struct {
 	AutomationCheckoutSources []string
 	// Keys for the Node-RED pull endpoints (separate from INTEGRATION_API_KEYS).
 	AutomationPullKeys []string
+	// Devices an ack must confirm as command_sent (default ac,lamp; door is not controlled).
+	AutomationRequiredDevices []string
 }
 
 func Load() *Config {
@@ -70,9 +72,10 @@ func Load() *Config {
 		AutomationBaseURL:    strings.TrimSpace(getEnv("AUTOMATION_BASE_URL", "")),
 		AutomationHMACSecret: getEnv("AUTOMATION_HMAC_SECRET", ""),
 		AutomationRoomCodes: splitCSV(getEnv("AUTOMATION_ROOM_CODES",
-			"Q1.05.03,Q1.05.05,Q1.05.16,Q1.06.15,Q1.06.05")),
+			"Q1.01.02,Q1.01.03,Q1.01.04,Q1.01.09,Q1.01.11")),
 		AutomationCheckoutSources: splitCSV(getEnv("AUTOMATION_CHECKOUT_SOURCES", "kiosk_button")),
 		AutomationPullKeys:        splitCSV(getEnv("AUTOMATION_PULL_API_KEYS", "")),
+		AutomationRequiredDevices: splitCSV(getEnv("AUTOMATION_REQUIRED_DEVICES", "ac,lamp")),
 	}
 }
 

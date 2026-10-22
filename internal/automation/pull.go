@@ -47,13 +47,35 @@ func (s *Service) enqueue(ctx context.Context, eventID string, cmd Command) {
 	log.Printf("automation: queued %s %s for %s (valid until %s)", cmd.Action, eventID, cmd.RoomCode, cmd.ExpiresAt)
 }
 
-// Puller serves the queue to Node-RED.
+// DefaultRequiredDevices are the devices that must report command_sent for an
+// ack to count as success. The on-prem backend controls AC and lamps only
+// (door commands are not part of that integration).
+var DefaultRequiredDevices = []string{"ac", "lamp"}
+
+// Puller serves the queue to the on-prem backend / Node-RED.
 type Puller struct {
-	db  *sql.DB
-	now func() time.Time
+	db       *sql.DB
+	now      func() time.Time
+	required []string
 }
 
-func NewPuller(db *sql.DB) *Puller { return &Puller{db: db, now: time.Now} }
+// NewPuller builds the queue reader. required lists the devices an ack must
+// confirm (empty = DefaultRequiredDevices).
+func NewPuller(db *sql.DB, required []string) *Puller {
+	if len(required) == 0 {
+		required = DefaultRequiredDevices
+	}
+	return &Puller{db: db, now: time.Now, required: required}
+}
+
+// IncompleteAckError means success:true was claimed but a required device was
+// not reported as command_sent. The ack is rejected (HTTP 422) and the command
+// stays queued without consuming an attempt.
+type IncompleteAckError struct{ Missing []string }
+
+func (e *IncompleteAckError) Error() string {
+	return "ack rejected: devices not reported as command_sent: " + strings.Join(e.Missing, ", ")
+}
 
 type queued struct {
 	eventID, typ, bookingID, room, payload string
@@ -158,9 +180,10 @@ func (p *Puller) staleReason(ctx context.Context, cmd Command, now time.Time) st
 	return ""
 }
 
-// Ack records Node-RED's result. success=true needs ac, lamp and door all
-// reported as command_sent; anything else counts as a failure and the command
-// is offered again until it expires or reaches 5 attempts.
+// Ack records the executor's result. success=true must confirm every required
+// device (see NewPuller) as command_sent, otherwise the ack is rejected with
+// IncompleteAckError. A reported failure (success=false) re-queues the command
+// until it expires or reaches 5 attempts.
 func (p *Puller) Ack(ctx context.Context, commandID string, success bool, devices map[string]string, message string) (string, error) {
 	var status string
 	var attempts int
@@ -177,14 +200,14 @@ func (p *Puller) Ack(ctx context.Context, commandID string, success bool, device
 		return status, fmt.Errorf("command is %s and can no longer be acknowledged", status)
 	}
 	if success {
-		for _, d := range []string{"ac", "lamp", "door"} {
+		var missing []string
+		for _, d := range p.required {
 			if devices[d] != "command_sent" {
-				success = false
-				if message == "" {
-					message = "device " + d + " not confirmed"
-				}
-				break
+				missing = append(missing, d)
 			}
+		}
+		if len(missing) > 0 {
+			return "queued", &IncompleteAckError{Missing: missing}
 		}
 	}
 	detail, _ := json.Marshal(map[string]any{"devices": devices, "message": message})
